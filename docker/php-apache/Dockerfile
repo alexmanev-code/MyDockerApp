@@ -12,7 +12,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN chown -R www-data:www-data /var/www/html
 
 # Copy custom Apache config
-COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/php-apache/000-default.conf /etc/apache2/sites-available/000-default.conf
 
 # Enable rewrite module
 RUN a2enmod rewrite
