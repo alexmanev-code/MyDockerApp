@@ -5,16 +5,8 @@ FROM composer:2 as composer_deps
 WORKDIR /app
 
 # Install system dependencies required for PHP extensions and frontend build tools using apk
-# CRITICAL FIX: Changed apt-get to apk
-RUN apk update && apk add --no-cache \
-    zip \
-    unzip \
-    git \
-    curl \
-    libpq \          # libpq for PostgreSQL client, equivalent to libpq-dev for runtime
-    build-base \     # For compiling PHP extensions
-    nodejs \         # Node.js for frontend
-    npm              # NPM for frontend
+# CRITICAL FIX: All packages installed in a single RUN command to avoid ALL line continuation issues
+RUN apk update && apk add --no-cache zip unzip git curl libpq build-base nodejs npm
 
 # Install Composer dependencies (copy composer.json and composer.lock from src/)
 COPY src/composer.json src/composer.lock ./
