@@ -5,18 +5,8 @@ FROM composer:2 as composer_deps
 WORKDIR /app
 
 # Install system dependencies required for PHP extensions and frontend build tools
-# Ensure all packages are installed in one robust RUN command
-RUN apt-get update \
-    && apt-get install -y \
-        zip \
-        unzip \
-        git \
-        curl \
-        libpq-dev \
-        nodejs \  # Node.js for frontend
-        npm \     # NPM for frontend
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# CRITICAL FIX: All packages installed in a single RUN command to avoid line continuation issues
+RUN apt-get update && apt-get install -y zip unzip git curl libpq-dev nodejs npm && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer dependencies (copy composer.json and composer.lock from src/)
 COPY src/composer.json src/composer.lock ./
@@ -42,7 +32,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions required for runtime
-# Moved to a separate RUN command for clarity and to ensure dependencies are met
 RUN docker-php-ext-install pdo pdo_mysql pdo_pgsql
 
 # Copy your Laravel application files (excluding the vendor directory)
@@ -52,7 +41,6 @@ COPY src/ .
 COPY --from=composer_deps /app/vendor /var/www/html/vendor
 
 # CRITICAL: Copy the built frontend assets from the 'composer_deps' stage
-# This ensures public/build is present in the final image
 COPY --from=composer_deps /app/public/build /var/www/html/public/build
 
 # Run Laravel migrations (this should ideally be a Render Release Command, not in Dockerfile)
