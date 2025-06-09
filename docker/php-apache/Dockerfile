@@ -39,7 +39,7 @@ COPY docker/php-apache/000-default.conf /etc/apache2/sites-available/000-default
 # Enable Apache's rewrite module and your custom site configuration.
 # Also, disable the *default* Apache site first to avoid conflicts.
 RUN a2enmod rewrite && \
-    a2dissite 000-default || true && \ # CRITICAL FIX: Disable the default site (usually named '000-default')
+    a2dissite 000-default || true && \
     a2ensite 000-default.conf
 
 # Expose port 80, as Apache runs on it. Render will map this to port 443 (HTTPS).
