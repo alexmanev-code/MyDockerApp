@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Copy only the composer.json and composer.lock files from your Laravel app's 'src' folder
 # (assuming your Laravel app is in 'src/' relative to your repo root)
-COPY src/composer.json src/composer.lock ./
+COPY src/ .
 
 # Install Composer dependencies, without dev dependencies, and optimize the autoloader
 RUN composer install --no-dev --optimize-autoloader
