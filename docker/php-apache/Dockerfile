@@ -4,9 +4,17 @@ FROM composer:2 as composer_deps
 # Set the working directory for Composer and NPM
 WORKDIR /app
 
-# Install system dependencies required for PHP extensions and frontend build tools
-# CRITICAL FIX: All packages installed in a single RUN command to avoid line continuation issues
-RUN apt-get update && apt-get install -y zip unzip git curl libpq-dev nodejs npm && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install system dependencies required for PHP extensions and frontend build tools using apk
+# CRITICAL FIX: Changed apt-get to apk
+RUN apk update && apk add --no-cache \
+    zip \
+    unzip \
+    git \
+    curl \
+    libpq \          # libpq for PostgreSQL client, equivalent to libpq-dev for runtime
+    build-base \     # For compiling PHP extensions
+    nodejs \         # Node.js for frontend
+    npm              # NPM for frontend
 
 # Install Composer dependencies (copy composer.json and composer.lock from src/)
 COPY src/composer.json src/composer.lock ./
@@ -20,12 +28,13 @@ RUN npm install && npm run build
 # --- End Frontend Build Steps ---
 
 # Stage 2: Final runtime image (leaner)
-FROM php:8.2-apache
+FROM php:8.2-apache # This base image uses Debian/Ubuntu, so apt-get is correct here.
 
 # Set the working directory
 WORKDIR /var/www/html
 
-# Install system dependencies needed at runtime (e.g., libpq for pdo_pgsql)
+# Install system dependencies needed at runtime (e.g., libpq-dev for pdo_pgsql)
+# apt-get is correct for this Debian-based image
 RUN apt-get update && \
     apt-get install -y libpq-dev && \
     apt-get clean && \
