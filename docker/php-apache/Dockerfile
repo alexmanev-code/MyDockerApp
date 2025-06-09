@@ -5,17 +5,18 @@ FROM composer:2 as composer_deps
 WORKDIR /app
 
 # Install system dependencies required for PHP extensions and frontend build tools using apk
-# All packages installed in a single RUN command to avoid ALL line continuation issues
 RUN apk update && apk add --no-cache zip unzip git curl libpq build-base nodejs npm
 
-# Install Composer dependencies (copy composer.json and composer.lock from src/)
-COPY src/composer.json src/composer.lock ./
+# CRITICAL FIX: Copy the entire Laravel application from 'src/' to '/app'
+# This ensures artisan and other files are present for composer and npm commands
+COPY src/ .
+
+# Install Composer dependencies (now artisan is available)
+# composer.json and composer.lock are already copied by the 'COPY src/ .' command
 RUN composer install --no-dev --optimize-autoloader
 
 # --- Frontend Build Steps ---
-# Copy NPM package files (package.json and package-lock.json from src/)
-COPY src/package.json src/package-lock.json ./
-# Install Node.js dependencies and build frontend assets (Vite)
+# package.json and package-lock.json are already copied by the 'COPY src/ .' command
 RUN npm install && npm run build
 # --- End Frontend Build Steps ---
 
@@ -36,6 +37,10 @@ RUN apt-get update && \
 RUN docker-php-ext-install pdo pdo_mysql pdo_pgsql
 
 # Copy your Laravel application files (excluding the vendor directory)
+# This copies everything from src/ EXCEPT the vendor directory which is copied separately
+# If you have a .dockerignore in your repo root that ignores src/vendor, this is fine.
+# Otherwise, consider 'COPY src/ ./ --exclude vendor' or relying only on the final copy.
+# Given your existing setup, this should be fine.
 COPY src/ .
 
 # Copy the installed Composer dependencies from the 'composer_deps' stage
