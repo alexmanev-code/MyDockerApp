@@ -1,56 +1,68 @@
-# Stage 1: Install Composer Dependencies
+# Stage 1: Build dependencies and frontend assets
 FROM composer:2 as composer_deps
 
-# Set the working directory for Composer
+# Set the working directory for Composer and NPM
 WORKDIR /app
 
-# Copy the entire Laravel application from 'src/' to '/app'
-COPY src/ .
-
-# Install Composer dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Stage 2: Build the final PHP-Apache application image
-FROM php:8.2-apache
-
-# Set the working directory
-WORKDIR /var/www/html
-
-# Install system dependencies and PHP extensions
+# Install system dependencies required for PHP extensions and frontend build tools
 RUN apt-get update && \
     apt-get install -y \
         zip \
         unzip \
         git \
         curl \
-        libpq-dev && \
-    docker-php-ext-install pdo pdo_mysql pdo_pgsql && \
+        libpq-dev \
+        nodejs \    # <--- ADDED: Node.js for frontend
+        npm \       # <--- ADDED: NPM for frontend
+        && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy your Laravel application files (excluding the vendor directory)
+# Install Composer dependencies (copy composer.json and composer.lock from src/)
+COPY src/composer.json src/composer.lock ./
+RUN composer install --no-dev --optimize-autoloader
+
+# --- NEW: Frontend Build Steps ---
+# Copy NPM package files (package.json and package-lock.json from src/)
+COPY src/package.json src/package-lock.json ./
+# Install Node.js dependencies and build frontend assets (Vite)
+RUN npm install && npm run build
+# --- END NEW ---
+
+# Stage 2: Final runtime image (leaner)
+FROM php:8.2-apache
+
+# Set the working directory
+WORKDIR /var/www/html
+
+# Install system dependencies needed at runtime (e.g., libpq for pdo_pgsql)
+RUN apt-get update && \
+    apt-get install -y libpq-dev && \ # libpq-dev is needed for pdo_pgsql to be enabled
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy your Laravel application files (excluding the vendor directory, as it's from Stage 1)
+# This copies everything from src/ including your public/ directory
 COPY src/ .
 
 # Copy the installed Composer dependencies from the 'composer_deps' stage
 COPY --from=composer_deps /app/vendor /var/www/html/vendor
 
 # CRITICAL FIX: Run Laravel migrations to create the database file and tables
-# This will create database/database.sqlite if it doesn't exist and run migrations.
-# Ensure your Render Environment Variables have DB_CONNECTION=sqlite set.
 RUN php artisan migrate --force
 
-# Change ownership and permissions for Laravel
+# Change ownership and permissions for Laravel, including the public/build directory
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type d -exec chmod 755 {} + \
     && find /var/www/html -type f -exec chmod 644 {} + \
     && chmod -R 775 /var/www/html/storage \
-    && chmod -R 775 /var/www/html/bootstrap/cache
+    && chmod -R 775 /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/public/build # Ensure build directory is writable/readable
 
 # Copy your custom Apache virtual host configuration file
 COPY docker/php-apache/000-default.conf /etc/apache2/sites-available/000-default.conf
 
 # Enable Apache's rewrite module and your custom site configuration.
-# Also, disable the default Apache site first to avoid conflicts.
 RUN a2enmod rewrite && \
     a2dissite 000-default || true && \
     a2ensite 000-default.conf
