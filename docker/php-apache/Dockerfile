@@ -1,6 +1,22 @@
-# Use the official PHP 8.2 with Apache base image
+# Stage 1: Install Composer Dependencies
+# Use a dedicated Composer image to install dependencies
+FROM composer:2 as composer_deps
+
+# Set the working directory for Composer
+WORKDIR /app
+
+# Copy only the composer.json and composer.lock files from your Laravel app's 'src' folder
+# (assuming your Laravel app is in 'src/' relative to your repo root)
+COPY src/composer.json src/composer.lock ./
+
+# Install Composer dependencies, without dev dependencies, and optimize the autoloader
+RUN composer install --no-dev --optimize-autoloader
+
+# Stage 2: Build the final PHP-Apache application image
+# Start a new image from the php:8.2-apache base
 FROM php:8.2-apache
-# Set the working directory inside the container to where your web files will go
+
+# Set the working directory inside the container for your web files
 WORKDIR /var/www/html
 
 # Update package lists, install system dependencies, and PHP extensions
@@ -15,20 +31,19 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Composer globally inside the container
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# CRITICAL: Copy your Laravel application files into the container
-# This assumes your Laravel app is in the 'src/' folder relative to your repository root.
+# Copy your Laravel application files (excluding the vendor directory, as it's from Stage 1)
+# You should have a .dockerignore file in your 'src' directory or your root
+# to ignore 'vendor' if you don't want to copy it twice.
 COPY src/ .
+
+# Copy the installed Composer dependencies from the 'composer_deps' stage
+COPY --from=composer_deps /app/vendor /var/www/html/vendor
 
 # Change ownership of the web files to the Apache user (www-data)
 # Also, set correct permissions for Laravel's storage and cache directories.
 RUN chown -R www-data:www-data /var/www/html \
-    # Standard permissions for web files and directories
     && find /var/www/html -type d -exec chmod 755 {} + \
     && find /var/www/html -type f -exec chmod 644 {} + \
-    # Specific permissions for Laravel's writable directories
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
@@ -37,12 +52,13 @@ RUN chown -R www-data:www-data /var/www/html \
 COPY docker/php-apache/000-default.conf /etc/apache2/sites-available/000-default.conf
 
 # Enable Apache's rewrite module and your custom site configuration.
-# Also, disable the *default* Apache site first to avoid conflicts.
+# Also, disable the default Apache site first to avoid conflicts.
 RUN a2enmod rewrite && \
     a2dissite 000-default || true && \
     a2ensite 000-default.conf
 
 # Expose port 80, as Apache runs on it. Render will map this to port 443 (HTTPS).
 EXPOSE 80
+
 # Command to run Apache in the foreground, essential for Docker containers.
 CMD ["apache2-foreground"]
