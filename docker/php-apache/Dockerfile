@@ -10,6 +10,8 @@ RUN apk update && apk add --no-cache zip unzip git curl libpq build-base nodejs 
 # Copy the entire Laravel application from 'src/' to '/app'
 COPY src/ .
 
+RUN composer clear-cache
+
 # Install Composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
