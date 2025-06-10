@@ -9,7 +9,7 @@ Route::get('/', function () {
     if (Auth::check()) {
         return redirect()->route('tasks.index');
     }
-    return redirect()->route('login');
+    return redirect()->route('register');
 });
 
 Route::get('/dashboard', function () {
